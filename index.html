@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OperaJuego</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap">
+<style>
+/* Una pantalla a la vez: esta regla hace valer el atributo hidden por encima
+   del display:flex de las tarjetas. Sin ella, las seis pantallas se apilan. */
+[hidden]{display:none!important}
+
+/* Diseño: una sola columna centrada (máx. 560 px), pensada primero para celular.
+   Fondo de cuadrícula tipo cuaderno; cada familia de operaciones tiene su propio color. */
+:root{
+  --bg:#EDF1F5; --sup:#FFFFFF; --tinta:#17212B; --suave:#56687A; --linea:#D2DCE6;
+  --suma:#15804A; --resta:#B55A0C; --multi:#6235C0; --divi:#0F62AE;
+  --ok:#15804A; --mal:#BD2638;
+  --cuadro:rgba(23,33,43,.06); --sombra:rgba(23,33,43,.10);
+  --acento:var(--suma);
+  --r:14px;
+  --display:"Fredoka",ui-rounded,system-ui,sans-serif;
+  --texto:"Nunito",system-ui,-apple-system,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#111A20; --sup:#1A252C; --tinta:#E8F0F4; --suave:#93A7B3; --linea:#2B3A44;
+    --suma:#45CE8C; --resta:#F0984A; --multi:#AC8BF2; --divi:#5BAFEE;
+    --ok:#45CE8C; --mal:#FF8793;
+    --cuadro:rgba(232,240,244,.05); --sombra:rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111A20; --sup:#1A252C; --tinta:#E8F0F4; --suave:#93A7B3; --linea:#2B3A44;
+  --suma:#45CE8C; --resta:#F0984A; --multi:#AC8BF2; --divi:#5BAFEE;
+  --ok:#45CE8C; --mal:#FF8793;
+  --cuadro:rgba(232,240,244,.05); --sombra:rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--tinta);
+  font-family:var(--texto); font-size:16px; line-height:1.5;
+  background-image:linear-gradient(var(--cuadro) 1px,transparent 1px),linear-gradient(90deg,var(--cuadro) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.envoltura{max-width:560px; margin:0 auto; padding-inline:16px; padding-block:18px 36px; display:flex; flex-direction:column; gap:16px}
+h1,h2,h3{font-family:var(--display); font-weight:600; margin:0; text-wrap:balance; line-height:1.2}
+h1{font-size:1.9rem; letter-spacing:-.01em}
+h2{font-size:1.25rem}
+h3{font-size:1rem}
+p{margin:0}
+.silencio{color:var(--suave); font-size:.9rem}
+.tarjeta{background:var(--sup); border:1px solid var(--linea); border-radius:var(--r); padding:18px; display:flex; flex-direction:column; gap:14px}
+.marca{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.marca span{font-family:var(--display); font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--suave)}
+
+/* --- botones --- */
+button{font-family:var(--texto); font-size:1rem; cursor:pointer; border-radius:12px; border:1px solid transparent; padding:12px 16px; transition:transform .12s ease, filter .12s ease}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:3px solid var(--acento); outline-offset:2px}
+.b-principal{background:var(--acento); color:#fff; font-weight:700; border:none}
+:root[data-theme="dark"] .b-principal{color:#0E1519}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]) .b-principal{color:#0E1519} }
+.b-suave{background:transparent; color:var(--tinta); border:1px solid var(--linea); font-weight:600}
+.b-suave:hover{border-color:var(--acento); color:var(--acento)}
+.fila{display:flex; gap:10px; flex-wrap:wrap}
+.fila>button{flex:1 1 auto; min-width:0}
+
+/* --- barra superior del juego --- */
+.hud{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:space-between}
+.chip{font-family:var(--display); font-size:.82rem; padding:5px 11px; border-radius:999px; background:color-mix(in srgb,var(--acento) 14%,transparent); color:var(--acento); border:1px solid color-mix(in srgb,var(--acento) 35%,transparent); white-space:nowrap}
+.dato{font-variant-numeric:tabular-nums; font-family:var(--display); font-size:.95rem; color:var(--suave)}
+.dato b{color:var(--tinta); font-size:1.15rem}
+.barra{height:8px; border-radius:99px; background:var(--linea); overflow:hidden}
+.barra i{display:block; height:100%; width:0; background:var(--acento); border-radius:99px; transition:width .35s ease}
+
+/* --- operación --- */
+.operacion{font-family:var(--display); font-weight:600; font-variant-numeric:tabular-nums; text-align:center; font-size:clamp(2.4rem,13vw,3.4rem); line-height:1.1; padding:10px 0; letter-spacing:.02em}
+.contexto{background:color-mix(in srgb,var(--acento) 9%,transparent); border-left:4px solid var(--acento); border-radius:0 10px 10px 0; padding:12px 14px; font-size:.97rem}
+.fichas{display:flex; flex-wrap:wrap; gap:14px; justify-content:center; padding-bottom:4px}
+.grupo{display:flex; flex-wrap:wrap; gap:5px; max-width:48%; justify-content:center}
+.ficha{width:17px; height:17px; border-radius:50%; background:var(--acento)}
+.grupo.b .ficha{background:color-mix(in srgb,var(--acento) 45%,var(--linea))}
+
+/* --- respuestas --- */
+.opciones{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+.opciones button{font-family:var(--display); font-size:1.5rem; font-variant-numeric:tabular-nums; background:var(--sup); border:2px solid var(--linea); color:var(--tinta); padding:16px 8px}
+.opciones button:hover:not(:disabled){border-color:var(--acento)}
+.opciones button:disabled{cursor:default; opacity:.55}
+.opciones button.buena{border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,var(--sup)); color:var(--ok); opacity:1}
+.opciones button.mala{border-color:var(--mal); background:color-mix(in srgb,var(--mal) 14%,var(--sup)); color:var(--mal); opacity:1}
+.casillas{display:flex; gap:12px; justify-content:center; flex-wrap:wrap}
+.casilla{display:flex; flex-direction:column; align-items:center; gap:5px; min-width:0}
+.casilla label{font-size:.78rem; letter-spacing:.1em; text-transform:uppercase; color:var(--suave); font-family:var(--display)}
+.casilla input{width:120px; max-width:38vw; text-align:center; font-family:var(--display); font-size:2rem; font-variant-numeric:tabular-nums; padding:8px 6px; border-radius:12px; border:2px solid var(--linea); background:var(--bg); color:var(--tinta)}
+.casilla input:focus{outline:none; border-color:var(--acento)}
+.casilla input.activa{border-color:var(--acento)}
+.teclado{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.teclado button{font-family:var(--display); font-size:1.35rem; background:var(--sup); border:1px solid var(--linea); color:var(--tinta); padding:14px 0}
+.teclado button:hover{border-color:var(--acento)}
+.teclado .ancho{grid-column:span 2}
+
+/* --- retroalimentación --- */
+.aviso{border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:9px; animation:entra .25s ease}
+.aviso.bien{background:color-mix(in srgb,var(--ok) 13%,transparent); border:1px solid color-mix(in srgb,var(--ok) 40%,transparent)}
+.aviso.mal{background:color-mix(in srgb,var(--mal) 12%,transparent); border:1px solid color-mix(in srgb,var(--mal) 38%,transparent)}
+.aviso h3{font-size:1.05rem}
+.aviso.bien h3{color:var(--ok)} .aviso.mal h3{color:var(--mal)}
+.pasos{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:5px; font-size:.95rem}
+.pasos li::marker{color:var(--acento); font-weight:700}
+@keyframes entra{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* --- mapa de niveles --- */
+.niveles{display:flex; flex-direction:column; gap:8px}
+.nivel{display:flex; align-items:center; gap:12px; text-align:left; width:100%; background:var(--sup); border:1px solid var(--linea); border-radius:12px; padding:11px 14px; color:var(--tinta)}
+.nivel:disabled{opacity:.45; cursor:default}
+.nivel .num{flex:0 0 34px; height:34px; display:grid; place-items:center; border-radius:10px; font-family:var(--display); font-weight:600; background:color-mix(in srgb,var(--c) 15%,transparent); color:var(--c); border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
+.nivel .txt{flex:1 1 auto; min-width:0}
+.nivel .txt b{display:block; font-family:var(--display); font-weight:600; font-size:.98rem}
+.nivel .txt span{font-size:.84rem; color:var(--suave)}
+.nivel .est{flex:0 0 auto; font-size:.78rem; font-family:var(--display); color:var(--suave)}
+.nivel.hecho .est{color:var(--ok)}
+
+/* --- tabla de puntuaciones --- */
+table{width:100%; border-collapse:collapse; font-size:.88rem; font-variant-numeric:tabular-nums}
+th,td{text-align:left; padding:7px 6px; border-bottom:1px solid var(--linea)}
+th{font-family:var(--display); font-weight:600; font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; color:var(--suave)}
+td.n{text-align:right}
+.scroll{overflow-x:auto}
+textarea{width:100%; box-sizing:border-box; min-height:110px; font-family:ui-monospace,monospace; font-size:.8rem; border-radius:10px; border:1px solid var(--linea); background:var(--bg); color:var(--tinta); padding:10px; resize:vertical}
+input[type=text]{font-family:var(--texto); font-size:1rem; padding:11px 13px; border-radius:11px; border:1px solid var(--linea); background:var(--bg); color:var(--tinta); width:100%; box-sizing:border-box}
+input[type=text]:focus{outline:none; border-color:var(--acento)}
+label.campo{display:flex; flex-direction:column; gap:5px; font-size:.84rem; color:var(--suave); font-weight:600}
+.pie{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:.82rem; color:var(--suave)}
+.puntazo{font-family:var(--display); font-size:3rem; font-variant-numeric:tabular-nums; line-height:1; color:var(--acento)}
+</style>
+</head>
+<body>
+<div class="envoltura">
+
+  <div class="marca">
+    <h1>OperaJuego</h1>
+    <span>Suma · Resta · Multiplicación · División</span>
+  </div>
+
+  <!-- ====== PANTALLA: INICIO ====== -->
+  <section id="p-inicio" class="tarjeta">
+    <h2>¿Quién va a jugar?</h2>
+    <p class="silencio">Escribe tu nombre y tu grado. El juego guarda tu avance en este dispositivo, así que puedes seguir después donde ibas.</p>
+    <label class="campo">Nombre<input type="text" id="in-nombre" autocomplete="off" placeholder="Ej.: María Camila"></label>
+    <label class="campo">Grado o grupo<input type="text" id="in-grado" autocomplete="off" placeholder="Ej.: 5.º B"></label>
+    <p id="aviso-inicio" class="silencio" hidden style="color:var(--mal)">Escribe tu nombre y tu grado para empezar.</p>
+    <button class="b-principal" id="b-entrar">Empezar a jugar</button>
+    <div class="pie">
+      <button class="b-suave" id="b-ver-docente">Panel del docente</button>
+      <button class="b-suave" id="b-sonido">Sonido: activado</button>
+    </div>
+  </section>
+
+  <!-- ====== PANTALLA: MAPA DE NIVELES ====== -->
+  <section id="p-mapa" class="tarjeta" hidden>
+    <div class="hud">
+      <h2 id="saludo">Hola</h2>
+      <div class="dato">Puntaje <b id="m-puntaje">0</b></div>
+    </div>
+    <p class="silencio">Cada nivel se apoya en el anterior. Para avanzar necesitas 8 aciertos de 10. Puedes repetir los niveles que ya ganaste.</p>
+    <div class="niveles" id="lista-niveles"></div>
+    <div class="pie">
+      <button class="b-suave" id="b-salir">Cambiar de jugador</button>
+      <button class="b-suave" id="b-docente2">Panel del docente</button>
+    </div>
+  </section>
+
+  <!-- ====== PANTALLA: EXPLICACIÓN DEL NIVEL ====== -->
+  <section id="p-explica" class="tarjeta" hidden>
+    <span class="chip" id="e-chip">Nivel 1</span>
+    <h2 id="e-titulo"></h2>
+    <div id="e-concepto"></div>
+    <div class="aviso bien" style="background:color-mix(in srgb,var(--acento) 10%,transparent); border-color:color-mix(in srgb,var(--acento) 35%,transparent)">
+      <h3 style="color:var(--acento)">Ejemplo resuelto</h3>
+      <div id="e-ejemplo"></div>
+    </div>
+    <div class="fila">
+      <button class="b-suave" id="b-volver-mapa">Volver</button>
+      <button class="b-principal" id="b-jugar">¡Vamos!</button>
+    </div>
+  </section>
+
+  <!-- ====== PANTALLA: JUEGO ====== -->
+  <section id="p-juego" class="tarjeta" hidden>
+    <div class="hud">
+      <span class="chip" id="j-chip">Nivel 1</span>
+      <div class="dato">Pregunta <b id="j-num">1</b>/10</div>
+      <div class="dato">Puntos <b id="j-puntos">0</b></div>
+      <div class="dato" id="j-racha" hidden>Racha <b>0</b></div>
+    </div>
+    <div class="barra"><i id="j-barra"></i></div>
+
+    <div id="j-contexto" class="contexto" hidden></div>
+    <div id="j-fichas" class="fichas" hidden></div>
+    <div class="operacion" id="j-operacion"></div>
+
+    <div id="j-opciones" class="opciones" hidden></div>
+
+    <div id="j-escribir" hidden>
+      <div class="casillas" id="j-casillas"></div>
+      <div class="teclado" style="margin-top:12px">
+        <button data-t="1">1</button><button data-t="2">2</button><button data-t="3">3</button>
+        <button data-t="4">4</button><button data-t="5">5</button><button data-t="6">6</button>
+        <button data-t="7">7</button><button data-t="8">8</button><button data-t="9">9</button>
+        <button data-t="borrar">←</button><button data-t="0">0</button><button data-t="listo" class="b-principal">Listo</button>
+      </div>
+    </div>
+
+    <div id="j-aviso"></div>
+    <button class="b-principal" id="b-seguir" hidden>Continuar</button>
+    <div class="pie"><button class="b-suave" id="b-abandonar">Salir del nivel</button></div>
+  </section>
+
+  <!-- ====== PANTALLA: FIN DE NIVEL ====== -->
+  <section id="p-fin" class="tarjeta" hidden>
+    <h2 id="f-titulo"></h2>
+    <div class="puntazo" id="f-aciertos"></div>
+    <p id="f-texto"></p>
+    <div class="scroll"><table>
+      <tbody>
+        <tr><th>Aciertos a la primera</th><td class="n" id="f-ok"></td></tr>
+        <tr><th>Errores</th><td class="n" id="f-err"></td></tr>
+        <tr><th>Puntos del nivel</th><td class="n" id="f-pts"></td></tr>
+        <tr><th>Tiempo</th><td class="n" id="f-tiempo"></td></tr>
+      </tbody>
+    </table></div>
+    <div class="fila">
+      <button class="b-suave" id="b-repetir">Repetir nivel</button>
+      <button class="b-principal" id="b-continuar">Continuar</button>
+    </div>
+  </section>
+
+  <!-- ====== PANTALLA: PANEL DEL DOCENTE ====== -->
+  <section id="p-docente" class="tarjeta" hidden>
+    <h2>Panel del docente</h2>
+    <p class="silencio">Resultados guardados en este dispositivo. Para pasarlos a otro lado, copia el resumen o la planilla y pégalos en WhatsApp, en un correo o en una hoja de cálculo.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Jugador</th><th>Grado</th><th class="n">Nivel</th><th class="n">Puntos</th><th class="n">Aciertos</th></tr></thead>
+        <tbody id="d-tabla"></tbody>
+      </table>
+    </div>
+    <div class="fila">
+      <button class="b-suave" id="b-copiar-resumen">Copiar resumen</button>
+      <button class="b-suave" id="b-copiar-csv">Copiar planilla (CSV)</button>
+    </div>
+    <textarea id="d-texto" readonly hidden aria-label="Resultados para copiar"></textarea>
+    <p id="d-aviso" class="silencio" hidden></p>
+    <div class="pie">
+      <button class="b-suave" id="b-reiniciar" style="color:var(--mal); border-color:color-mix(in srgb,var(--mal) 40%,transparent)">Borrar todos los resultados</button>
+      <button class="b-suave" id="b-cerrar-docente">Volver</button>
+    </div>
+    <div id="d-confirma" class="aviso mal" hidden>
+      <h3>¿Seguro que quieres borrar todo?</h3>
+      <p>Se perderán los resultados de todos los jugadores guardados en este dispositivo. Esta acción no se puede deshacer.</p>
+      <div class="fila">
+        <button class="b-suave" id="b-no">No, cancelar</button>
+        <button class="b-suave" id="b-si" style="color:var(--mal); border-color:var(--mal)">Sí, borrar todo</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   OperaJuego — juego generado con el prompt del proyecto de feria.
+   Todo el contenido se genera por código: los ejercicios nunca se repiten igual.
+   ============================================================ */
+
+/* ---------- utilidades ---------- */
+const $ = (id) => document.getElementById(id);
+const az = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;   // aleatorio entre a y b, incluidos
+const revuelve = (v) => v.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(p => p[1]);
+
+// Arma 4 opciones: la correcta y tres distractores que son errores típicos.
+function opciones(correcta, malas) {
+  const vistos = new Set([correcta]);
+  const lista = [correcta];
+  for (const m of malas) {
+    if (lista.length >= 4) break;
+    if (m !== null && m >= 0 && !vistos.has(m)) { vistos.add(m); lista.push(m); }
+  }
+  let d = 1;
+  while (lista.length < 4) {                       // relleno de seguridad
+    const extra = correcta + (lista.length % 2 ? d : -d);
+    if (extra >= 0 && !vistos.has(extra)) { vistos.add(extra); lista.push(extra); }
+    d++;
+  }
+  return revuelve(lista);
+}
+
+/* ---------- almacenamiento en el dispositivo ---------- */
+const CLAVE = "operajuego.v1";
+let bd = { registros: [], mudo: false };
+
+function cargar() {
+  try {
+    const crudo = localStorage.getItem(CLAVE);
+    if (crudo) {
+      const d = JSON.parse(crudo);
+      if (d && Array.isArray(d.registros)) bd = { registros: d.registros, mudo: !!d.mudo };
+    }
+  } catch (e) { /* modo privado o almacenamiento bloqueado: el juego funciona igual */ }
+}
+function guardar() {
+  try { localStorage.setItem(CLAVE, JSON.stringify(bd)); } catch (e) { /* sin guardado */ }
+}
+
+/* ---------- sonido (Web Audio API, sin archivos externos) ---------- */
+let audio = null;
+function pito(frecuencias, dur) {
+  if (bd.mudo) return;
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    frecuencias.forEach((f, i) => {
+      const osc = audio.createOscillator(), vol = audio.createGain();
+      osc.type = "sine"; osc.frequency.value = f;
+      const t = audio.currentTime + i * dur;
+      vol.gain.setValueAtTime(0.0001, t);
+      vol.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      vol.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(vol); vol.connect(audio.destination);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    });
+  } catch (e) { /* sin sonido */ }
+}
+const sonBien = () => pito([660, 880], 0.12);
+const sonMal  = () => pito([240, 180], 0.16);
+const sonNivel = () => pito([523, 659, 784, 1047], 0.13);
+
+/* ============================================================
+   LOS 10 NIVELES
+   El orden es obligatorio: cada operación se apoya en la anterior.
+   ============================================================ */
+const NIVELES = [
+
+  { /* 1 */ titulo: "Sumas hasta 10", resumen: "Contar para sumar", familia: "suma",
+    concepto: `<p>Sumar es <b>juntar</b>. Si tienes unas fichas y te dan más, cuentas todas y sabes cuántas hay en total.</p>`,
+    ejemplo: `<p><b>3 + 4</b></p><p>Cuento 3 fichas: ● ● ●<br>Agrego 4 fichas: ● ● ● ●<br>Cuento todas: 1, 2, 3, 4, 5, 6, 7.</p><p><b>3 + 4 = 7</b></p>`,
+    gen() {
+      const a = az(1, 6), b = az(1, 10 - a), r = a + b;
+      return {
+        texto: `${a} + ${b}`, fichas: [a, b], resp: [r], tipo: "opciones",
+        ops: opciones(r, [r + 1, r - 1, a * b, Math.abs(a - b)]),
+        clave: `Juntaste ${a} y ${b}: en total ${r}.`,
+        pasos: [`Cuenta ${a} fichas.`, `Agrega ${b} fichas más.`, `Cuéntalas todas: hay ${r}.`, `${a} + ${b} = ${r}`]
+      };
+    }
+  },
+
+  { /* 2 */ titulo: "Sumas de dos cifras", resumen: "Sin llevar", familia: "suma",
+    concepto: `<p>Cuando los números tienen dos cifras, sumamos por columnas: primero las <b>unidades</b> y después las <b>decenas</b>.</p>`,
+    ejemplo: `<p><b>34 + 25</b></p><p>Unidades: 4 + 5 = 9<br>Decenas: 3 + 2 = 5</p><p><b>34 + 25 = 59</b></p>`,
+    gen() {
+      const u1 = az(1, 4), u2 = az(1, 9 - u1), d1 = az(1, 4), d2 = az(1, 9 - d1);
+      const a = d1 * 10 + u1, b = d2 * 10 + u2, r = a + b;
+      return {
+        texto: `${a} + ${b}`, resp: [r], tipo: "opciones",
+        ops: opciones(r, [r + 10, r - 10, r + 1, r - 1]),
+        clave: `Unidades ${u1}+${u2}, decenas ${d1}+${d2}. Así se arma el ${r}.`,
+        pasos: [`Unidades: ${u1} + ${u2} = ${u1 + u2}`, `Decenas: ${d1} + ${d2} = ${d1 + d2}`, `${a} + ${b} = ${r}`]
+      };
+    }
+  },
+
+  { /* 3 */ titulo: "Sumas llevando", resumen: "Reagrupar las unidades", familia: "suma",
+    concepto: `<p>Si las unidades pasan de 9, no caben en su columna: <b>10 unidades forman 1 decena</b>. Escribimos lo que sobra y <b>llevamos 1</b> a las decenas.</p>`,
+    ejemplo: `<p><b>27 + 15</b></p><p>Unidades: 7 + 5 = 12. Escribo el 2 y llevo 1.<br>Decenas: 2 + 1 + <b>1 que llevaba</b> = 4</p><p><b>27 + 15 = 42</b></p>`,
+    gen() {
+      const u1 = az(5, 9), u2 = az(10 - u1, 9), d1 = az(1, 4), d2 = az(1, 4);
+      const a = d1 * 10 + u1, b = d2 * 10 + u2, r = a + b, su = u1 + u2;
+      return {
+        texto: `${a} + ${b}`, resp: [r], tipo: "opciones",
+        ops: opciones(r, [r - 10, r + 10, r - 1, r + 1]),   // r-10 = olvidar la llevada
+        clave: `Llevaste 1 a las decenas. Por eso da ${r}.`,
+        pasos: [`Unidades: ${u1} + ${u2} = ${su}. Escribo el ${su % 10} y llevo 1.`,
+                `Decenas: ${d1} + ${d2} + 1 que llevaba = ${d1 + d2 + 1}`,
+                `${a} + ${b} = ${r}`,
+                `Si te dio ${r - 10}, se te olvidó la llevada.`]
+      };
+    }
+  },
+
+  { /* 4 */ titulo: "Restas sin prestar", resumen: "La resta deshace la suma", familia: "resta",
+    concepto: `<p>Restar es <b>quitar</b>. La resta es la operación <b>inversa</b> de la suma: deshace lo que la suma hizo.</p><p>Si <b>7 + 5 = 12</b>, entonces <b>12 − 5 = 7</b>.</p>`,
+    ejemplo: `<p><b>58 − 23</b></p><p>Unidades: 8 − 3 = 5<br>Decenas: 5 − 2 = 3</p><p><b>58 − 23 = 35</b>, y lo compruebo: 35 + 23 = 58.</p>`,
+    gen() {
+      const rU = az(1, 4), bU = az(1, 9 - rU), rD = az(1, 4), bD = az(1, 9 - rD);
+      const b = bD * 10 + bU, r = rD * 10 + rU, c = r + b;
+      return {
+        texto: `${c} − ${b}`, resp: [r], tipo: "opciones",
+        ops: opciones(r, [c + b, r + 10, r - 10, r + 1]),
+        clave: `Compruébalo: ${r} + ${b} = ${c}.`,
+        pasos: [`Piensa en la suma que ya conoces: ${r} + ${b} = ${c}.`,
+                `Entonces ${c} − ${b} = ${r}.`,
+                `Por columnas: unidades ${rU + bU} − ${bU} = ${rU}; decenas ${rD + bD} − ${bD} = ${rD}.`]
+      };
+    }
+  },
+
+  { /* 5 */ titulo: "Restas prestando", resumen: "Desagrupar una decena", familia: "resta",
+    concepto: `<p>Cuando arriba hay menos unidades que abajo, le <b>pedimos prestada 1 decena</b>. Esa decena vale 10 unidades, así que las unidades de arriba aumentan en 10 y las decenas bajan en 1.</p><p>Ojo: en la resta <b>no se puede voltear</b> la columna. 3 − 7 no es lo mismo que 7 − 3.</p>`,
+    ejemplo: `<p><b>52 − 27</b></p><p>No puedo quitar 7 de 2. Le pido 1 decena a las 5 decenas:<br>quedan 4 decenas y las unidades pasan a ser 12.<br>Unidades: 12 − 7 = 5<br>Decenas: 4 − 2 = 2</p><p><b>52 − 27 = 25</b></p>`,
+    gen() {
+      const cU = az(0, 4), bU = az(cU + 1, 9), cD = az(3, 9), bD = az(1, cD - 1);
+      const c = cD * 10 + cU, b = bD * 10 + bU, r = c - b;
+      const trampa = (cD - bD) * 10 + (bU - cU);   // error típico: restar el menor del mayor en cada columna
+      return {
+        texto: `${c} − ${b}`, resp: [r], tipo: "opciones",
+        ops: opciones(r, [trampa, r + 10, r - 10, r + 1]),
+        clave: `Pediste prestada 1 decena y quedó ${r}.`,
+        pasos: [`No puedo quitar ${bU} de ${cU}.`,
+                `Le pido 1 decena a las ${cD} decenas: quedan ${cD - 1} y las unidades pasan a ser ${cU + 10}.`,
+                `Unidades: ${cU + 10} − ${bU} = ${cU + 10 - bU}`,
+                `Decenas: ${cD - 1} − ${bD} = ${cD - 1 - bD}`,
+                `${c} − ${b} = ${r}`]
+      };
+    }
+  },
+
+  { /* 6 */ titulo: "Sumas y restas mezcladas", resumen: "Y el término que falta", familia: "resta",
+    concepto: `<p>Ya manejas las dos operaciones. Ahora hay que decidir cuál usar.</p><p>Para hallar el <b>término que falta</b>, usa la operación contraria: si falta un sumando, se resta; si falta lo que se quitó, se resta también.</p>`,
+    ejemplo: `<p><b>7 + ___ = 12</b></p><p>Me falta un sumando, así que hago la resta: 12 − 7 = 5.</p><p><b>7 + 5 = 12</b></p>`,
+    gen() {
+      const clase = az(1, 3);
+      if (clase === 1) {                                   // suma normal
+        const a = az(15, 68), b = az(12, 31), r = a + b;
+        return { texto: `${a} + ${b}`, resp: [r], tipo: "escribir", campos: ["Resultado"],
+          clave: `Bien sumado: ${r}.`,
+          pasos: [`Unidades: ${a % 10} + ${b % 10} = ${(a % 10) + (b % 10)}`, `${a} + ${b} = ${r}`] };
+      }
+      if (clase === 2) {                                   // resta normal
+        const r = az(13, 49), b = az(12, 38), c = r + b;
+        return { texto: `${c} − ${b}`, resp: [r], tipo: "escribir", campos: ["Resultado"],
+          clave: `Compruébalo: ${r} + ${b} = ${c}.`,
+          pasos: [`Pienso: ¿cuánto le falta a ${b} para llegar a ${c}?`, `${b} + ${r} = ${c}`, `${c} − ${b} = ${r}`] };
+      }
+      const a = az(6, 39), falta = az(5, 40), c = a + falta;  // término que falta
+      return { texto: `${a} + ___ = ${c}`, resp: [falta], tipo: "escribir", campos: ["Falta"],
+        clave: `${a} + ${falta} = ${c}. Lo hallaste restando.`,
+        pasos: [`Me falta un sumando, así que hago la resta contraria.`, `${c} − ${a} = ${falta}`, `Compruebo: ${a} + ${falta} = ${c}`] };
+    }
+  },
+
+  { /* 7 */ titulo: "Multiplicar es sumar varias veces", resumen: "Tablas del 2, 5 y 10", familia: "multi",
+    concepto: `<p>Multiplicar es una <b>suma repetida</b>. <b>4 × 3</b> significa sumar tres veces el 4: 4 + 4 + 4.</p><p>Por eso multiplicar es un atajo: en vez de sumar muchas veces, usamos las tablas.</p>`,
+    ejemplo: `<p><b>5 × 4</b></p><p>Sumo cuatro veces el 5: 5 + 5 + 5 + 5<br>5 + 5 = 10, 10 + 5 = 15, 15 + 5 = 20.</p><p><b>5 × 4 = 20</b></p>`,
+    gen() {
+      const t = [2, 5, 10][az(0, 2)], n = az(2, 10), r = t * n;
+      return {
+        texto: `${t} × ${n}`, resp: [r], tipo: "opciones",
+        ops: opciones(r, [t + n, r - t, r + t, t * t]),
+        clave: `${t} sumado ${n} veces da ${r}.`,
+        pasos: [`${t} × ${n} es sumar ${n} veces el número ${t}.`,
+                `${Array(n).fill(t).join(" + ")} = ${r}`,
+                `${t} × ${n} = ${r}`,
+                `Si te dio ${t + n}, sumaste los dos números en vez de multiplicarlos.`]
+      };
+    }
+  },
+
+  { /* 8 */ titulo: "Las tablas completas", resumen: "Hasta 12 × 12", familia: "multi",
+    concepto: `<p>Cuando una tabla no te sale de memoria, <b>apóyate en la que ya sabes</b>: para 7 × 6, piensa en 7 × 5 = 35 y súmale un 7 más.</p>`,
+    ejemplo: `<p><b>8 × 7</b></p><p>Sé que 8 × 5 = 40.<br>Me faltan dos ochos: 40 + 8 = 48, 48 + 8 = 56.</p><p><b>8 × 7 = 56</b></p>`,
+    gen() {
+      const a = az(3, 12), b = az(3, 12), r = a * b;
+      const pasos = b > 10
+        ? [`Separo el ${b} en 10 + ${b - 10}.`, `${a} × 10 = ${a * 10}`, `${a} × ${b - 10} = ${a * (b - 10)}`, `${a * 10} + ${a * (b - 10)} = ${r}`]
+        : [`Me apoyo en ${a} × ${b - 1} = ${a * (b - 1)}.`, `Le sumo un ${a} más: ${a * (b - 1)} + ${a} = ${r}`, `${a} × ${b} = ${r}`];
+      return { texto: `${a} × ${b}`, resp: [r], tipo: "escribir", campos: ["Resultado"],
+        clave: `${a} × ${b} = ${r}.`, pasos };
+    }
+  },
+
+  { /* 9 */ titulo: "División exacta", resumen: "La división deshace la multiplicación", familia: "divi",
+    concepto: `<p>Dividir es <b>repartir en partes iguales</b>. Es la operación <b>inversa</b> de la multiplicación.</p><p>Si <b>6 × 4 = 24</b>, entonces <b>24 ÷ 4 = 6</b>.</p><p>Ojo: igual que la resta, la división <b>no se puede voltear</b>. 24 ÷ 4 no es lo mismo que 4 ÷ 24.</p>`,
+    ejemplo: `<p><b>35 ÷ 5</b></p><p>Me pregunto: ¿qué número multiplicado por 5 da 35?<br>7 × 5 = 35.</p><p><b>35 ÷ 5 = 7</b></p>`,
+    gen() {
+      const b = az(2, 12), r = az(2, 12), c = b * r;
+      return { texto: `${c} ÷ ${b}`, resp: [r], tipo: "escribir", campos: ["Resultado"],
+        clave: `Compruébalo: ${r} × ${b} = ${c}.`,
+        pasos: [`Me pregunto: ¿qué número multiplicado por ${b} da ${c}?`, `${r} × ${b} = ${c}`, `${c} ÷ ${b} = ${r}`] };
+    }
+  },
+
+  { /* 10 */ titulo: "División con residuo", resumen: "Repartir en la vida real", familia: "divi",
+    concepto: `<p>No todo reparto es exacto. Lo que <b>sobra</b> y ya no alcanza para dar una vuelta más se llama <b>residuo</b>, y siempre es menor que el divisor.</p>`,
+    ejemplo: `<p><b>29 bananos entre 4 bolsas</b></p><p>4 × 7 = 28, que es lo más cerca que llego a 29 sin pasarme.<br>29 − 28 = 1</p><p><b>A cada bolsa le tocan 7 y sobra 1.</b></p>`,
+    gen() {
+      const casos = [
+        ["mangos", "canastas"], ["bananos", "bolsas"], ["galletas", "amigos"],
+        ["lápices", "estudiantes"], ["arepas", "platos"], ["bombones", "niños"]
+      ];
+      const [cosa, quien] = casos[az(0, casos.length - 1)];
+      const d = az(3, 9), q = az(3, 12), res = az(1, d - 1), c = d * q + res;
+      return {
+        contexto: `Hay <b>${c} ${cosa}</b> para repartir en partes iguales entre <b>${d} ${quien}</b>.`,
+        texto: `${c} ÷ ${d}`, resp: [q, res], tipo: "escribir", campos: ["A cada uno", "Sobran"],
+        clave: `A cada uno le tocan ${q} y sobran ${res}.`,
+        pasos: [`Busco la multiplicación más cercana sin pasarme: ${d} × ${q} = ${d * q}.`,
+                `Lo que sobra: ${c} − ${d * q} = ${res}.`,
+                `El residuo ${res} es menor que ${d}, así que ya no alcanza para otra vuelta.`,
+                `A cada uno le tocan ${q} ${cosa} y sobran ${res}.`]
+      };
+    }
+  }
+];
+
+const COLOR = { suma: "var(--suma)", resta: "var(--resta)", multi: "var(--multi)", divi: "var(--divi)" };
+const META = 8;          // aciertos a la primera que se necesitan para pasar
+const PREGUNTAS = 10;
+
+/* ---------- estado de la partida ---------- */
+let reg = null;          // registro del jugador actual
+let S = null;            // estado del nivel en curso
+let campoActivo = 0;
+
+/* ---------- navegación entre pantallas ---------- */
+const PANTALLAS = ["p-inicio", "p-mapa", "p-explica", "p-juego", "p-fin", "p-docente"];
+function ver(id) {
+  PANTALLAS.forEach(p => { $(p).hidden = (p !== id); });
+  window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+}
+function pintaAcento(familia) {
+  document.documentElement.style.setProperty("--acento", COLOR[familia] || "var(--suma)");
+}
+
+/* ---------- jugadores ---------- */
+function buscaRegistro(nombre, grado) {
+  const llave = (nombre + "|" + grado).toLowerCase().trim();
+  return bd.registros.find(r => (r.nombre + "|" + r.grado).toLowerCase().trim() === llave) || null;
+}
+function nuevoRegistro(nombre, grado) {
+  const r = { nombre, grado, nivelMax: 1, puntaje: 0, aciertos: 0, errores: 0, segundos: 0, fecha: hoy() };
+  bd.registros.push(r); guardar(); return r;
+}
+function hoy() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+function reloj(seg) {
+  const m = Math.floor(seg / 60), s = seg % 60;
+  return `${m} min ${String(s).padStart(2, "0")} s`;
+}
+
+/* ---------- mapa de niveles ---------- */
+function pintaMapa() {
+  $("saludo").textContent = "Hola, " + reg.nombre.split(" ")[0];
+  $("m-puntaje").textContent = reg.puntaje;
+  pintaAcento(NIVELES[Math.min(reg.nivelMax, 10) - 1].familia);
+  const cont = $("lista-niveles");
+  cont.innerHTML = "";
+  NIVELES.forEach((n, i) => {
+    const num = i + 1;
+    const abierto = num <= reg.nivelMax;
+    const hecho = num < reg.nivelMax;
+    const b = document.createElement("button");
+    b.className = "nivel" + (hecho ? " hecho" : "");
+    b.style.setProperty("--c", COLOR[n.familia]);
+    b.disabled = !abierto;
+    b.innerHTML = `<span class="num">${num}</span>
+      <span class="txt"><b>${n.titulo}</b><span>${n.resumen}</span></span>
+      <span class="est">${hecho ? "Superado" : abierto ? "Jugar" : "Cerrado"}</span>`;
+    b.addEventListener("click", () => explicar(num));
+    cont.appendChild(b);
+  });
+}
+
+/* ---------- explicación previa al nivel ---------- */
+let nivelPendiente = 1;
+function explicar(num) {
+  const n = NIVELES[num - 1];
+  nivelPendiente = num;
+  pintaAcento(n.familia);
+  $("e-chip").textContent = "Nivel " + num;
+  $("e-titulo").textContent = n.titulo;
+  $("e-concepto").innerHTML = n.concepto;
+  $("e-ejemplo").innerHTML = n.ejemplo;
+  ver("p-explica");
+}
+
+/* ---------- arranque de un nivel ---------- */
+function empezarNivel(num) {
+  const n = NIVELES[num - 1];
+  pintaAcento(n.familia);
+  S = { nivel: num, i: 0, aciertos: 0, errores: 0, puntos: 0, racha: 0, refuerzo: 0, q: null, t0: Date.now() };
+  $("j-chip").textContent = "Nivel " + num;
+  ver("p-juego");
+  siguiente();
+}
+
+function siguiente() {
+  S.refuerzo = 0;
+  S.i++;
+  if (S.i > PREGUNTAS) return terminarNivel();
+  nuevaPregunta(false);
+}
+
+function nuevaPregunta(esRefuerzo) {
+  S.q = NIVELES[S.nivel - 1].gen();
+  campoActivo = 0;
+  const q = S.q;
+
+  $("j-num").textContent = Math.min(S.i, PREGUNTAS);
+  $("j-puntos").textContent = S.puntos;
+  $("j-barra").style.width = ((S.i - 1) / PREGUNTAS * 100) + "%";
+  const chipRacha = $("j-racha");
+  chipRacha.hidden = S.racha < 3;
+  if (S.racha >= 3) chipRacha.innerHTML = `Racha <b>${S.racha}</b>`;
+
+  $("j-aviso").innerHTML = esRefuerzo
+    ? `<p class="silencio">Intenta con uno parecido para afianzarlo.</p>` : "";
+  $("b-seguir").hidden = true;
+
+  // contexto (problema con palabras)
+  const ctx = $("j-contexto");
+  if (q.contexto) { ctx.innerHTML = q.contexto; ctx.hidden = false; } else { ctx.hidden = true; }
+
+  // fichas de apoyo para el nivel 1
+  const fi = $("j-fichas");
+  if (q.fichas) {
+    fi.innerHTML = `<span class="grupo">${'<i class="ficha"></i>'.repeat(q.fichas[0])}</span>
+                    <span class="grupo b">${'<i class="ficha"></i>'.repeat(q.fichas[1])}</span>`;
+    fi.hidden = false;
+  } else { fi.hidden = true; }
+
+  $("j-operacion").textContent = q.texto;
+
+  if (q.tipo === "opciones") {
+    $("j-escribir").hidden = true;
+    const cont = $("j-opciones");
+    cont.hidden = false;
+    cont.innerHTML = "";
+    q.ops.forEach(v => {
+      const b = document.createElement("button");
+      b.textContent = v;
+      b.addEventListener("click", () => responder([v], b));
+      cont.appendChild(b);
+    });
+  } else {
+    $("j-opciones").hidden = true;
+    $("j-escribir").hidden = false;
+    const cont = $("j-casillas");
+    cont.innerHTML = "";
+    q.campos.forEach((etiqueta, k) => {
+      const caja = document.createElement("div");
+      caja.className = "casilla";
+      caja.innerHTML = `<label for="c${k}">${etiqueta}</label>
+        <input id="c${k}" type="text" inputmode="numeric" autocomplete="off" maxlength="4" class="${k === 0 ? "activa" : ""}">`;
+      cont.appendChild(caja);
+    });
+    cont.querySelectorAll("input").forEach((inp, k) => {
+      inp.addEventListener("focus", () => marcaCampo(k));
+      inp.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); enviarEscrito(); }
+      });
+    });
+    const primero = cont.querySelector("input");
+    if (primero) primero.focus({ preventScroll: true });
+  }
+}
+
+function marcaCampo(k) {
+  campoActivo = k;
+  document.querySelectorAll("#j-casillas input").forEach((inp, i) => inp.classList.toggle("activa", i === k));
+}
+
+/* ---------- teclado en pantalla ---------- */
+document.querySelectorAll(".teclado button").forEach(b => {
+  b.addEventListener("click", () => {
+    const t = b.dataset.t;
+    const inputs = document.querySelectorAll("#j-casillas input");
+    if (!inputs.length) return;
+    if (t === "listo") return enviarEscrito();
+    const inp = inputs[campoActivo] || inputs[0];
+    if (t === "borrar") inp.value = inp.value.slice(0, -1);
+    else if (inp.value.length < 4) inp.value += t;
+    inp.focus({ preventScroll: true });
+  });
+});
+
+function enviarEscrito() {
+  const inputs = [...document.querySelectorAll("#j-casillas input")];
+  if (inputs.some(i => i.value.trim() === "")) {
+    // si falta algún campo, llevo el foco al primero vacío en vez de calificar
+    const vacio = inputs.findIndex(i => i.value.trim() === "");
+    marcaCampo(vacio); inputs[vacio].focus({ preventScroll: true });
+    return;
+  }
+  responder(inputs.map(i => parseInt(i.value, 10)), null);
+}
+
+/* ---------- calificar ---------- */
+function responder(valores, boton) {
+  const q = S.q;
+  const bien = q.resp.every((v, k) => Number(valores[k]) === v);
+  const esRefuerzo = S.refuerzo > 0;
+
+  // bloqueo los controles mientras se muestra la retroalimentación
+  document.querySelectorAll("#j-opciones button").forEach(b => b.disabled = true);
+  document.querySelectorAll("#j-casillas input").forEach(i => i.disabled = true);
+
+  if (q.tipo === "opciones") {
+    document.querySelectorAll("#j-opciones button").forEach(b => {
+      if (Number(b.textContent) === q.resp[0]) b.classList.add("buena");
+    });
+    if (!bien && boton) boton.classList.add("mala");
+  }
+
+  if (bien) {
+    sonBien();
+    if (!esRefuerzo) {
+      S.aciertos++; S.racha++;
+      let suma = 10 + (S.racha >= 3 ? 5 : 0);
+      S.puntos += suma;
+      $("j-aviso").innerHTML = `<div class="aviso bien"><h3>¡Correcto! +${suma}${S.racha >= 3 ? " (racha de " + S.racha + ")" : ""}</h3><p>${q.clave}</p></div>`;
+    } else {
+      S.puntos += 2;
+      $("j-aviso").innerHTML = `<div class="aviso bien"><h3>¡Eso es! +2</h3><p>${q.clave} Ahora sigamos.</p></div>`;
+    }
+    $("j-puntos").textContent = S.puntos;
+    $("b-seguir").textContent = "Continuar";
+    $("b-seguir").hidden = false;
+    $("b-seguir").onclick = siguiente;
+  } else {
+    sonMal();
+    S.racha = 0;
+    if (!esRefuerzo) { S.errores++; S.puntos = Math.max(0, S.puntos - 3); $("j-puntos").textContent = S.puntos; }
+    const pasos = q.pasos.map(p => `<li>${p}</li>`).join("");
+    const resp = q.resp.length > 1 ? `${q.resp[0]} y sobran ${q.resp[1]}` : q.resp[0];
+    $("j-aviso").innerHTML = `<div class="aviso mal">
+        <h3>Casi. La respuesta es ${resp}.</h3>
+        <p>Mira cómo se hace:</p><ol class="pasos">${pasos}</ol></div>`;
+    S.refuerzo++;
+    if (S.refuerzo <= 2) {
+      $("b-seguir").textContent = "Intentar uno parecido";
+      $("b-seguir").onclick = () => nuevaPregunta(true);
+    } else {
+      $("b-seguir").textContent = "Continuar";
+      $("b-seguir").onclick = siguiente;
+    }
+    $("b-seguir").hidden = false;
+  }
+  $("j-barra").style.width = (S.i / PREGUNTAS * 100) + "%";
+}
+
+/* ---------- fin del nivel ---------- */
+function terminarNivel() {
+  const seg = Math.round((Date.now() - S.t0) / 1000);
+  const paso = S.aciertos >= META;
+
+  reg.puntaje += S.puntos;
+  reg.aciertos += S.aciertos;
+  reg.errores += S.errores;
+  reg.segundos += seg;
+  reg.fecha = hoy();
+  if (paso && S.nivel === reg.nivelMax && reg.nivelMax < NIVELES.length) reg.nivelMax++;
+  guardar();
+
+  if (paso) sonNivel();
+  $("f-titulo").textContent = paso ? "¡Nivel superado!" : "Casi lo logras";
+  $("f-aciertos").textContent = S.aciertos + " / " + PREGUNTAS;
+  $("f-texto").textContent = paso
+    ? (S.nivel < NIVELES.length ? "Ya puedes pasar al nivel " + (S.nivel + 1) + "." : "¡Terminaste los diez niveles! Puedes repetir el que quieras para mejorar tu puntaje.")
+    : "Necesitas " + META + " aciertos de " + PREGUNTAS + " para avanzar. Repasa la explicación y vuelve a intentarlo: los ejercicios serán distintos.";
+  $("f-ok").textContent = S.aciertos;
+  $("f-err").textContent = S.errores;
+  $("f-pts").textContent = S.puntos;
+  $("f-tiempo").textContent = reloj(seg);
+  $("b-continuar").textContent = paso ? "Ir al mapa de niveles" : "Ver la explicación otra vez";
+  $("b-continuar").onclick = () => { if (paso) { pintaMapa(); ver("p-mapa"); } else explicar(S.nivel); };
+  $("b-repetir").onclick = () => empezarNivel(S.nivel);
+  ver("p-fin");
+}
+
+/* ---------- panel del docente ---------- */
+function pintaDocente() {
+  const cuerpo = $("d-tabla");
+  cuerpo.innerHTML = "";
+  const orden = [...bd.registros].sort((a, b) => b.puntaje - a.puntaje);
+  if (!orden.length) {
+    cuerpo.innerHTML = `<tr><td colspan="5" class="silencio">Todavía no hay resultados en este dispositivo.</td></tr>`;
+  } else {
+    orden.forEach(r => {
+      const fila = document.createElement("tr");
+      fila.innerHTML = `<td>${r.nombre}</td><td>${r.grado}</td><td class="n">${r.nivelMax}</td><td class="n">${r.puntaje}</td><td class="n">${r.aciertos}</td>`;
+      cuerpo.appendChild(fila);
+    });
+  }
+  $("d-texto").hidden = true;
+  $("d-aviso").hidden = true;
+  $("d-confirma").hidden = true;
+}
+
+function textoResumen() {
+  if (!reg) return planilla();
+  return `OperaJuego — resultados de ${reg.nombre} (${reg.grado})
+Nivel alcanzado: ${reg.nivelMax} de ${NIVELES.length}
+Puntaje acumulado: ${reg.puntaje}
+Aciertos: ${reg.aciertos} · Errores: ${reg.errores}
+Tiempo jugado: ${reloj(reg.segundos)}
+Última sesión: ${reg.fecha}`;
+}
+function planilla() {
+  const filas = [["Nombre", "Grado", "Nivel alcanzado", "Puntaje", "Aciertos", "Errores", "Minutos", "Fecha"]];
+  bd.registros.forEach(r => filas.push([r.nombre, r.grado, r.nivelMax, r.puntaje, r.aciertos, r.errores, Math.round(r.segundos / 60), r.fecha]));
+  return filas.map(f => f.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
+}
+function copiar(texto, etiqueta) {
+  const caja = $("d-texto"), aviso = $("d-aviso");
+  caja.value = texto; caja.hidden = false;
+  aviso.hidden = false;
+  const listo = () => { aviso.textContent = etiqueta + " copiado. Ya puedes pegarlo donde lo necesites."; };
+  const aMano = () => { aviso.textContent = "Selecciona el texto de abajo y cópialo a mano."; caja.focus(); caja.select(); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(listo).catch(aMano);
+    } else aMano();
+  } catch (e) { aMano(); }
+}
+
+/* ---------- eventos de la interfaz ---------- */
+$("b-entrar").addEventListener("click", () => {
+  const nombre = $("in-nombre").value.trim(), grado = $("in-grado").value.trim();
+  if (!nombre || !grado) { $("aviso-inicio").hidden = false; return; }
+  $("aviso-inicio").hidden = true;
+  reg = buscaRegistro(nombre, grado) || nuevoRegistro(nombre, grado);
+  pintaMapa(); ver("p-mapa");
+});
+$("in-grado").addEventListener("keydown", e => { if (e.key === "Enter") $("b-entrar").click(); });
+
+$("b-sonido").addEventListener("click", () => {
+  bd.mudo = !bd.mudo; guardar();
+  $("b-sonido").textContent = "Sonido: " + (bd.mudo ? "apagado" : "activado");
+  if (!bd.mudo) sonBien();
+});
+$("b-volver-mapa").addEventListener("click", () => { pintaMapa(); ver("p-mapa"); });
+$("b-jugar").addEventListener("click", () => empezarNivel(nivelPendiente));
+$("b-abandonar").addEventListener("click", () => { pintaMapa(); ver("p-mapa"); });
+$("b-salir").addEventListener("click", () => { reg = null; ver("p-inicio"); });
+$("b-ver-docente").addEventListener("click", () => { pintaDocente(); ver("p-docente"); });
+$("b-docente2").addEventListener("click", () => { pintaDocente(); ver("p-docente"); });
+$("b-cerrar-docente").addEventListener("click", () => { if (reg) { pintaMapa(); ver("p-mapa"); } else ver("p-inicio"); });
+$("b-copiar-resumen").addEventListener("click", () => copiar(textoResumen(), "Resumen"));
+$("b-copiar-csv").addEventListener("click", () => copiar(planilla(), "Planilla"));
+$("b-reiniciar").addEventListener("click", () => { $("d-confirma").hidden = false; });
+$("b-no").addEventListener("click", () => { $("d-confirma").hidden = true; });
+$("b-si").addEventListener("click", () => {
+  bd.registros = []; guardar(); reg = null; pintaDocente(); ver("p-inicio");
+});
+
+/* ---------- arranque ---------- */
+cargar();
+$("b-sonido").textContent = "Sonido: " + (bd.mudo ? "apagado" : "activado");
+// Si ya hay alguien guardado en este dispositivo, propongo su nombre para seguir donde iba.
+if (bd.registros.length) {
+  const ultimo = bd.registros[bd.registros.length - 1];
+  $("in-nombre").value = ultimo.nombre;
+  $("in-grado").value = ultimo.grado;
+}
+ver("p-inicio");
+</script>
+</body>
+</html>
